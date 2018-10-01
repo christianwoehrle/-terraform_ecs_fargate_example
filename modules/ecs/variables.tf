@@ -16,7 +16,7 @@ variable "security_groups_ids" {
   description = "The SGs to use"
 }
 
-variable "subnets_ids" {
+variable "private_subnet_ids" {
   type        = "list"
   description = "The private subnets to use"
 }

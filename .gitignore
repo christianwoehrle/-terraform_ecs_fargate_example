@@ -1,3 +1,4 @@
 secrets.tf
+.idea
 **/.terraform
 terraform.tfstate*

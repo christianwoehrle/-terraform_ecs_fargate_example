@@ -67,6 +67,7 @@ resource "aws_alb_target_group" "alb_target_group" {
   lifecycle {
     create_before_destroy = true
   }
+  depends_on        = ["aws_alb.alb_openjobs"]
 }
 
 /* security group for ALB */
@@ -119,10 +120,48 @@ resource "aws_alb_listener" "openjobs" {
   depends_on        = ["aws_alb_target_group.alb_target_group"]
 
   default_action {
-    target_group_arn = "${aws_alb_target_group.alb_target_group.arn}"
-    type             = "forward"
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "HEALTHY"
+      status_code = "200"
+    }
   }
 }
+
+resource "aws_lb_listener_rule" "static" {
+  listener_arn = "${aws_alb_listener.openjobs.arn}"
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = "${aws_alb_target_group.alb_target_group.arn}"
+  }
+
+  condition {
+    field  = "path-pattern"
+    values = ["/dude/*"]
+  }
+}
+
+resource "aws_lb_listener_rule" "health_check" {
+  listener_arn = "${aws_alb_listener.openjobs.arn}"
+
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "HEALTHY"
+      status_code = "200"
+    }
+  }
+
+  condition {
+    field  = "path-pattern"
+    values = ["/health"]
+  }
+}
+
 
 /*
 * IAM service role
@@ -221,11 +260,11 @@ resource "aws_ecs_service" "web" {
   desired_count   = 2
   launch_type     = "FARGATE"
   cluster =       "${aws_ecs_cluster.cluster.id}"
-  depends_on      = ["aws_iam_role_policy.ecs_service_role_policy"]
+  depends_on      = ["aws_iam_role_policy.ecs_service_role_policy", "aws_alb_target_group.alb_target_group"]
 
   network_configuration {
     security_groups = ["${var.security_groups_ids}", "${aws_security_group.ecs_service.id}"]
-    subnets         = ["${var.subnets_ids}"]
+    subnets         = ["${var.private_subnet_ids}"]
   }
 
   load_balancer {
@@ -234,7 +273,6 @@ resource "aws_ecs_service" "web" {
     container_port   = "80"
   }
 
-  depends_on = ["aws_alb_target_group.alb_target_group"]
 }
 
 
